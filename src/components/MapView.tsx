@@ -21,11 +21,14 @@ export default function MapView() {
   React.useEffect(() => {
     async function fetchConfig() {
       try {
+        console.log("MapView: Fetching runtime config...");
         const res = await fetch('/api/config');
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         const data = await res.json();
+        console.log("MapView: Config received, key present:", !!data.googleMapsApiKey);
         setApiKey(data.googleMapsApiKey);
       } catch (err) {
-        console.error("Failed to fetch Google Maps config:", err);
+        console.error("MapView: Failed to fetch Google Maps config:", err);
       } finally {
         setIsLoadingKey(false);
       }
@@ -46,7 +49,7 @@ export default function MapView() {
     );
   }
 
-  if (!apiKey || apiKey === "YOUR_API_KEY_HERE") {
+  if (!apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.length < 5) {
     return (
       <div style={{
         ...containerStyle,
@@ -55,13 +58,16 @@ export default function MapView() {
         alignItems: 'center',
         justifyContent: 'center',
         border: '1px solid var(--border)',
-        fontSize: '0.8rem',
+        fontSize: '0.75rem',
         color: 'var(--text-tertiary)',
         textAlign: 'center',
-        padding: '1rem'
+        padding: '1rem',
+        flexDirection: 'column',
+        gap: '0.5rem'
       }}>
-        Google Maps API Key Missing or Invalid.<br/>
-        Please check Cloud Run environment variables.
+        <div style={{fontWeight: 600, color: 'var(--danger)'}}>Map Configuration Error</div>
+        <div>API Key missing from Runtime Config.</div>
+        <div style={{fontSize: '0.65rem', opacity: 0.6}}>Verify Cloud Run Env Vars (v2.1)</div>
       </div>
     );
   }

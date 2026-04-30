@@ -86,15 +86,15 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
     const init = async () => {
       try {
-        const data = await loadSession(sId!);
+        const data = await loadSession(sId!) as Record<string, any>;
         if (data) {
           console.log("DashboardContext: Session loaded", sId);
-          if (data.messages) setMessages(data.messages);
-          if (data.steps) setSteps(data.steps);
-          if (data.activeStep) setActiveStep(data.activeStep);
-          if (data.userLocation) setUserLocation(data.userLocation);
-          if (data.trustScore) setTrustScore(data.trustScore);
-          if (data.trustMetrics) setTrustMetrics(data.trustMetrics);
+          if (data.messages) setMessages(data.messages as Message[]);
+          if (data.steps) setSteps(data.steps as StepData[]);
+          if (data.activeStep) setActiveStep(data.activeStep as number);
+          if (data.userLocation) setUserLocation(data.userLocation as string);
+          if (data.trustScore) setTrustScore(data.trustScore as number);
+          if (data.trustMetrics) setTrustMetrics(data.trustMetrics as TrustMetrics);
         } else {
           console.log("DashboardContext: No existing session found, starting fresh.");
         }

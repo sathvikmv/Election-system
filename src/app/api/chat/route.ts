@@ -12,7 +12,7 @@ import { logAnalyticsEvent } from '@/lib/bigquery';
 let ai: GoogleGenAI | null = null;
 try {
   const key = process.env.GEMINI_API_KEY;
-  if (key && key.startsWith('AIza')) {
+  if (key && key.length > 10) {
     ai = new GoogleGenAI({ apiKey: key });
     console.log("Chat API: Google Gen AI client initialized successfully.");
   } else {
