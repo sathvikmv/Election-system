@@ -2,7 +2,12 @@
 
 import React from 'react';
 import styles from '../app/dashboard/page.module.css';
-import MapView from './MapView';
+import dynamic from 'next/dynamic';
+
+const MapView = dynamic(() => import('./MapView'), { 
+  ssr: false,
+  loading: () => <div style={{width: '100%', height: '160px', background: 'var(--surface-alt)', borderRadius: '12px'}} className="shimmer" />
+});
 
 export default function ElectionInsights() {
   return (

@@ -15,12 +15,36 @@ const center = {
 };
 
 export default function MapView() {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const [apiKey, setApiKey] = React.useState<string | null>(null);
+  const [isLoadingKey, setIsLoadingKey] = React.useState(true);
+
+  React.useEffect(() => {
+    async function fetchConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        setApiKey(data.googleMapsApiKey);
+      } catch (err) {
+        console.error("Failed to fetch Google Maps config:", err);
+      } finally {
+        setIsLoadingKey(false);
+      }
+    }
+    fetchConfig();
+  }, []);
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: apiKey || "",
   });
+
+  if (isLoadingKey) {
+    return (
+      <div style={{...containerStyle, background: 'var(--surface-alt)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+        <div className="shimmer" style={{width: '100%', height: '100%', borderRadius: '12px'}} />
+      </div>
+    );
+  }
 
   if (!apiKey || apiKey === "YOUR_API_KEY_HERE") {
     return (
@@ -37,7 +61,7 @@ export default function MapView() {
         padding: '1rem'
       }}>
         Google Maps API Key Missing or Invalid.<br/>
-        Please update .env.local
+        Please check Cloud Run environment variables.
       </div>
     );
   }
@@ -55,6 +79,23 @@ export default function MapView() {
       mapContainerStyle={containerStyle}
       center={center}
       zoom={14}
+      options={{
+        disableDefaultUI: true,
+        styles: [
+          {
+            elementType: "geometry",
+            stylers: [{ color: "#242f3e" }],
+          },
+          {
+            elementType: "labels.text.stroke",
+            stylers: [{ color: "#242f3e" }],
+          },
+          {
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#746855" }],
+          },
+        ]
+      }}
     >
       <Marker position={center} />
     </GoogleMap>
