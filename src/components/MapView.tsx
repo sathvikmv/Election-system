@@ -10,38 +10,46 @@ const containerStyle = {
 };
 
 const center = {
-  lat: 15.2993,  // Goa example
+  lat: 15.2993,
   lng: 74.1240,
 };
 
-export default function MapView() {
-  const [apiKey, setApiKey] = React.useState<string | null>(null);
-  const [isLoadingKey, setIsLoadingKey] = React.useState(true);
+// Read key from process.env (hardcoded in next.config.ts at build time)
+// Also try runtime fetch as fallback
+const BUILD_TIME_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
+export default function MapView() {
+  const [apiKey, setApiKey] = React.useState<string>(BUILD_TIME_KEY);
+  const [keyResolved, setKeyResolved] = React.useState(!!BUILD_TIME_KEY);
+
+  // If build-time key is missing, try fetching at runtime
   React.useEffect(() => {
+    if (apiKey) {
+      setKeyResolved(true);
+      return;
+    }
     async function fetchConfig() {
       try {
-        console.log("MapView: Fetching runtime config...");
         const res = await fetch('/api/config');
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         const data = await res.json();
-        console.log("MapView: Config received, key present:", !!data.googleMapsApiKey);
-        setApiKey(data.googleMapsApiKey);
+        if (data.googleMapsApiKey) {
+          setApiKey(data.googleMapsApiKey);
+        }
       } catch (err) {
-        console.error("MapView: Failed to fetch Google Maps config:", err);
+        console.error("MapView: Failed to fetch config:", err);
       } finally {
-        setIsLoadingKey(false);
+        setKeyResolved(true);
       }
     }
     fetchConfig();
-  }, []);
+  }, [apiKey]);
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: apiKey || "",
   });
 
-  if (isLoadingKey) {
+  if (!keyResolved) {
     return (
       <div style={{...containerStyle, background: 'var(--surface-alt)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
         <div className="shimmer" style={{width: '100%', height: '100%', borderRadius: '12px'}} />
@@ -49,7 +57,7 @@ export default function MapView() {
     );
   }
 
-  if (!apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.length < 5) {
+  if (!apiKey || apiKey.length < 10) {
     return (
       <div style={{
         ...containerStyle,
@@ -61,21 +69,17 @@ export default function MapView() {
         fontSize: '0.75rem',
         color: 'var(--text-tertiary)',
         textAlign: 'center',
-        padding: '1rem',
-        flexDirection: 'column',
-        gap: '0.5rem'
+        padding: '1rem'
       }}>
-        <div style={{fontWeight: 600, color: 'var(--danger)'}}>Map Configuration Error</div>
-        <div>API Key missing from Runtime Config.</div>
-        <div style={{fontSize: '0.65rem', opacity: 0.6}}>Verify Cloud Run Env Vars (v2.1)</div>
+        Map temporarily unavailable
       </div>
     );
   }
 
   if (loadError) {
     return (
-      <div style={{...containerStyle, background: 'var(--surface-alt)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-        Error loading maps
+      <div style={{...containerStyle, background: 'var(--surface-alt)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--text-tertiary)'}}>
+        Map loading error
       </div>
     );
   }
@@ -88,26 +92,17 @@ export default function MapView() {
       options={{
         disableDefaultUI: true,
         styles: [
-          {
-            elementType: "geometry",
-            stylers: [{ color: "#242f3e" }],
-          },
-          {
-            elementType: "labels.text.stroke",
-            stylers: [{ color: "#242f3e" }],
-          },
-          {
-            elementType: "labels.text.fill",
-            stylers: [{ color: "#746855" }],
-          },
+          { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+          { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
         ]
       }}
     >
       <Marker position={center} />
     </GoogleMap>
   ) : (
-    <div style={{...containerStyle, background: 'var(--surface-alt)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-      Loading...
+    <div style={{...containerStyle, background: 'var(--surface-alt)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--text-tertiary)'}}>
+      Loading map...
     </div>
   );
 }
