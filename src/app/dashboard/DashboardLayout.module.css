@@ -15,11 +15,10 @@
   overflow: hidden;
 }
 
-.contentAndChat {
-  display: grid;
-  grid-template-columns: 1fr var(--chat-width);
+.content {
+  display: flex;
   flex: 1;
-  overflow: hidden; /* Prevent this container from scrolling */
+  overflow: hidden;
 }
 
 .mainContent {
@@ -29,12 +28,6 @@
   scrollbar-gutter: stable;
 }
 
-@media (max-width: 1280px) {
-  .contentAndChat {
-    grid-template-columns: 1fr 350px;
-  }
-}
-
 @media (max-width: 1024px) {
   .mainWrapper {
     margin-left: 0;
@@ -42,8 +35,8 @@
     height: auto;
     overflow: visible;
   }
-  .contentAndChat {
-    grid-template-columns: 1fr;
+  .content {
+    display: block;
     height: auto;
     overflow: visible;
   }
