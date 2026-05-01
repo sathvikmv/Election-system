@@ -1,0 +1,7 @@
+[[build.env]]
+    name = "GOOGLE_NODEJS_VERSION"
+    value = "20.x"
+
+[[build.env]]
+    name = "NEXT_TELEMETRY_DISABLED"
+    value = "1"
