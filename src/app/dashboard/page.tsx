@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from 'react';
-import DOMPurify from 'isomorphic-dompurify';
 import { useDashboard } from '@/context/DashboardContext';
+export const dynamic = 'force-dynamic';
 import styles from './page.module.css';
 
 import VotingJourney from '@/components/VotingJourney';
@@ -50,7 +50,7 @@ export default function Dashboard() {
               ● Ready to Vote
             </span>
             <span style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>
-              Location: <strong>{DOMPurify.sanitize(userLocation || 'Global (Set in settings)', { ALLOWED_TAGS: [] })}</strong>
+              Location: <strong>{userLocation || 'Global (Set in settings)'}</strong>
             </span>
           </div>
         </div>
