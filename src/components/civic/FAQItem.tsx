@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { FAQ } from '@/types';
-import civicStyles from './CivicProcessMap.module.css';
+import civicStyles from '../CivicProcessMap.module.css';
 
 export default function FAQItem({ faq }: { faq: FAQ }) {
   const [open, setOpen] = useState(false);
