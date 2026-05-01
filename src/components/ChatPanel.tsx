@@ -26,7 +26,7 @@ export default function ChatPanel() {
         <div className={styles.chatMessages}>
           {messages.map(m => (
             <div key={m.id} className={`${styles.message} ${styles[m.role]}`}>
-              <ReactMarkdown>{DOMPurify.sanitize(m.content, { ALLOWED_TAGS: [] })}</ReactMarkdown>
+              <ReactMarkdown>{DOMPurify.sanitize(String(m.content), { ALLOWED_TAGS: [] })}</ReactMarkdown>
             </div>
           ))}
           {isTyping && (

@@ -1,105 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
-import { ChatRequest, ChatResponse } from '@/types';
 
-// Initialize the Gemini client
-const getGeminiClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.length < 10) return null;
-  return new GoogleGenAI({ apiKey });
-};
-
-const SYSTEM_PROMPT = `
-You are the Election Navigator AI, a Google-powered Civic AI Copilot. 
-Your goal is to provide clear, trustworthy, and accessible guidance on election processes.
-- Be objective and non-partisan.
-- Tailor advice to help users navigate "what-if" scenarios like missed deadlines or first-time voting.
-- Format responses clearly (use markdown, bullet points).
-- Emphasize that you are an AI assistant and users should verify with official local election offices.
-`;
-
-/**
- * Sanitizes input and ensures it is a string to prevent 'replace is not a function' errors.
- */
-function sanitize(input: any): string {
-  if (input === null || input === undefined) return '';
-  const str = String(input);
-  return str.replace(/<[^>]*>/g, '').trim().substring(0, 2000);
-}
+// DEFINITIVE REST ENDPOINT
+const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
 export async function POST(req: NextRequest) {
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  
+  if (!apiKey || !apiKey.startsWith("AIza")) {
+    return NextResponse.json({ 
+      reply: "⚠️ SYSTEM ALERT: Invalid API Key detected. Please ensure you are using a Gemini API Key from Google AI Studio (starting with 'AIza')." 
+    });
+  }
+
   try {
-    const body: ChatRequest = await req.json();
-    const { message, history, context } = body;
-
-    // 1. Validation
-    if (!message || typeof message !== 'string') {
-      return NextResponse.json({ error: 'Valid message string is required' }, { status: 400 });
-    }
-
-    const cleanMessage = sanitize(message);
-    const cleanLocation = sanitize(context?.location);
-    const cleanStep = sanitize(context?.activeStep);
-
-    console.log(`[ChatAPI] Processing message. Context: ${cleanLocation}, Step: ${cleanStep}`);
-
-    const ai = getGeminiClient();
-
-    if (ai) {
-      const model = ai.models.get("gemini-1.5-flash");
-      
-      const formattedHistory = (history || []).map(msg => ({
+    const body = await req.json();
+    const contents = [
+      ...(body.history || []).map((msg: any) => ({
         role: msg.role === 'bot' ? 'model' : 'user',
-        parts: [{ text: msg.content }]
-      })).filter(msg => msg.role !== 'system');
+        parts: [{ text: String(msg.content) }]
+      })),
+      { role: 'user', parts: [{ text: String(body.message) }] }
+    ];
 
-      const contextNote = `[User Context: Location=${cleanLocation || 'Global'}, Step=${cleanStep}] `;
+    const response = await fetch(`${ENDPOINT}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents })
+    });
 
-      const result = await model.generateContent({
-        contents: [
-          { role: 'user', parts: [{ text: SYSTEM_PROMPT }] },
-          { role: 'model', parts: [{ text: 'Understood. I will act as the Election Navigator AI.' }] },
-          ...formattedHistory,
-          { role: 'user', parts: [{ text: contextNote + cleanMessage }] }
-        ],
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 1000,
-        }
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("Gemini API Error:", data);
+      return NextResponse.json({ 
+        reply: `⚠️ API Error (${response.status}): ${data.error?.message || "Check your API key restrictions."}` 
       });
-
-      const responseText = result.response.text();
-      return NextResponse.json({ reply: responseText } as ChatResponse);
-    } else {
-      // Robust Fallback Mode
-      console.warn("[ChatAPI] API Key missing, using fallback.");
-      const reply = generateFallbackResponse(cleanMessage, cleanLocation);
-      return NextResponse.json({ reply } as ChatResponse);
     }
+
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
+    return NextResponse.json({ reply });
 
   } catch (error: any) {
-    console.error('[ChatAPI] Fatal error:', error);
-    return NextResponse.json(
-      { 
-        error: 'Internal server error', 
-        reply: "I'm having trouble connecting to my brain right now. Please check your internet or try again in a moment." 
-      } as ChatResponse, 
-      { status: 500 }
-    );
+    console.error('[ChatAPI] Fatal Error:', error.message);
+    return NextResponse.json({ reply: "Connection timed out. Please try again." });
   }
-}
-
-function generateFallbackResponse(message: string, location: string): string {
-  const lc = message.toLowerCase();
-  let response = "I am currently in high-security offline mode. ";
-  
-  if (lc.includes("register")) {
-    response += "To register, most jurisdictions require you to be 18+ and a citizen. Check your local Secretary of State website.";
-  } else if (lc.includes("deadline")) {
-    response += "Deadlines vary by state. Many require registration 30 days before an election.";
-  } else {
-    response += `I received your message about "${message.substring(0, 30)}...". For specific guidance in ${location || 'your area'}, please ensure the Gemini API key is configured correctly in the environment.`;
-  }
-  
-  return response;
 }
