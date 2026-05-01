@@ -1,27 +1,14 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { saveSession, loadSession } from '@/lib/firebase';
 import { StepData, INITIAL_STEPS } from '@/components/CivicProcessMap';
-
-interface Message {
-  id: string;
-  role: 'user' | 'bot';
-  content: string;
-}
-
-interface TrustMetrics {
-  accuracy: number;
-  clarity: number;
-  biasRisk: number;
-  completeness: number;
-  recommendation: string;
-}
+import { ChatMessage, TrustMetrics } from '@/types';
 
 interface DashboardContextType {
-  messages: Message[];
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  messages: ChatMessage[];
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   inputValue: string;
   setInputValue: React.Dispatch<React.SetStateAction<string>>;
   isTyping: boolean;
@@ -45,7 +32,7 @@ interface DashboardContextType {
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
       role: 'bot',
@@ -76,7 +63,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     if (loadingRef.current) return;
     loadingRef.current = true;
 
-    console.log("DashboardContext: Initializing session...");
     let sId = localStorage.getItem('election_session_id');
     if (!sId) {
       sId = uuidv4();
@@ -88,15 +74,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       try {
         const data = await loadSession(sId!) as Record<string, any>;
         if (data) {
-          console.log("DashboardContext: Session loaded", sId);
-          if (data.messages) setMessages(data.messages as Message[]);
+          if (data.messages) setMessages(data.messages as ChatMessage[]);
           if (data.steps) setSteps(data.steps as StepData[]);
           if (data.activeStep) setActiveStep(data.activeStep as number);
           if (data.userLocation) setUserLocation(data.userLocation as string);
           if (data.trustScore) setTrustScore(data.trustScore as number);
           if (data.trustMetrics) setTrustMetrics(data.trustMetrics as TrustMetrics);
-        } else {
-          console.log("DashboardContext: No existing session found, starting fresh.");
         }
       } catch (err) {
         console.error("DashboardContext: Error loading session", err);
@@ -107,12 +90,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     init();
   }, []);
 
-  // Save changes
+  // Auto-save changes (Debounced)
   useEffect(() => {
     if (!sessionId || !isLoaded) return;
     
     const save = async () => {
-      console.log("DashboardContext: Auto-saving session...");
       await saveSession(sessionId, {
         messages, steps, activeStep, userLocation, trustScore, trustMetrics
       });
@@ -121,11 +103,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timer);
   }, [messages, steps, activeStep, userLocation, trustScore, trustMetrics, sessionId, isLoaded]);
 
-  const handleSendMessage = async (e?: React.FormEvent) => {
+  const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!inputValue.trim() || isTyping) return;
+    const messageToSend = inputValue.trim();
+    if (!messageToSend || isTyping) return;
 
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: inputValue };
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: messageToSend };
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
     setIsTyping(true);
@@ -134,48 +117,71 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: inputValue, history: messages, context: { location: userLocation, activeStep } })
+        body: JSON.stringify({ 
+          message: messageToSend, 
+          history: messages, 
+          context: { location: userLocation, activeStep } 
+        })
       });
+      
       const data = await res.json();
-      const botMsg: Message = { id: (Date.now() + 1).toString(), role: 'bot', content: data.reply || "Error." };
+      
+      if (!res.ok) {
+        throw new Error(data.reply || data.error || "Failed to get response");
+      }
+      
+      const botMsg: ChatMessage = { 
+        id: (Date.now() + 1).toString(), 
+        role: 'bot', 
+        content: data.reply 
+      };
       setMessages(prev => [...prev, botMsg]);
-    } catch (err) {
+    } catch (err: any) {
       console.error("DashboardContext: Chat error", err);
-      const errorMsg: Message = { id: Date.now().toString(), role: 'bot', content: "I'm having trouble connecting right now. Please try again later." };
+      const errorMsg: ChatMessage = { 
+        id: Date.now().toString(), 
+        role: 'bot', 
+        content: `I'm sorry, I encountered an issue: ${err.message}. Please try again.` 
+      };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsTyping(false);
     }
-  };
+  }, [inputValue, isTyping, messages, userLocation, activeStep]);
 
-  const handleSelectStep = (id: number) => {
+  const handleSelectStep = useCallback((id: number) => {
     setActiveStep(id);
     setSteps(prev => prev.map(s => ({
       ...s,
       status: s.id < id ? 'completed' : s.id === id ? 'active' : s.status === 'completed' ? 'completed' : 'pending'
     })));
-  };
+  }, []);
 
-  const handleMarkComplete = () => {
+  const handleMarkComplete = useCallback(() => {
     setSteps(prev => prev.map(s => s.id === activeStep ? { ...s, status: 'completed' } : s));
     if (activeStep < steps.length) handleSelectStep(activeStep + 1);
-  };
+  }, [activeStep, steps.length, handleSelectStep]);
+
+  const contextValue = useMemo(() => ({
+    messages, setMessages,
+    inputValue, setInputValue,
+    isTyping, setIsTyping,
+    trustScore, setTrustScore,
+    trustMetrics, setTrustMetrics,
+    steps, setSteps,
+    activeStep, setActiveStep,
+    userLocation, setUserLocation,
+    isLoaded,
+    handleSendMessage,
+    handleSelectStep,
+    handleMarkComplete
+  }), [
+    messages, inputValue, isTyping, trustScore, trustMetrics, steps, 
+    activeStep, userLocation, isLoaded, handleSendMessage, handleSelectStep, handleMarkComplete
+  ]);
 
   return (
-    <DashboardContext.Provider value={{
-      messages, setMessages,
-      inputValue, setInputValue,
-      isTyping, setIsTyping,
-      trustScore, setTrustScore,
-      trustMetrics, setTrustMetrics,
-      steps, setSteps,
-      activeStep, setActiveStep,
-      userLocation, setUserLocation,
-      isLoaded,
-      handleSendMessage,
-      handleSelectStep,
-      handleMarkComplete
-    }}>
+    <DashboardContext.Provider value={contextValue}>
       {children}
     </DashboardContext.Provider>
   );

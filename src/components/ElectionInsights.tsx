@@ -3,10 +3,11 @@
 import React from 'react';
 import styles from '../app/dashboard/page.module.css';
 import dynamic from 'next/dynamic';
+import Skeleton from './ui/Skeleton';
 
 const MapView = dynamic(() => import('./MapView'), { 
   ssr: false,
-  loading: () => <div style={{width: '100%', height: '160px', background: 'var(--surface-alt)', borderRadius: '12px'}} className="shimmer" />
+  loading: () => <Skeleton height="160px" borderRadius="12px" />
 });
 
 export default function ElectionInsights() {
